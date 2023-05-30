@@ -1,0 +1,675 @@
+---
+title: "Don't Get Kicked - Car Dealers Buying Cars at Auctions"
+author: "Anthony Wilson"
+date: "11/17/2019"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+##### **Section 1 – Getting Started**
+  - Provide an introduction that explains the problem statement you are addressing. Why would someone be interested in this?
+    - Car prices continue to go up, understanding the value of a car is important for consumers and dealers to consider while purchasing/trading a car.  Most want the newest bells and whistles as well as the enhanced safety features for their families. Used cars can be difficult to purchase/trade. We may not understand the true value of a car, until after one has owned it for several weeks and its true colors start to shine...or fall off the car. Dealers face this issue as well when they get new cars on their lot whether it be by trading a car or buying one at an auction. “Lemons”, or vehicles that are defective, affect their bottom line and their ability to provide a reliable product. We will go through and evaluate used cars to try and gain a better understanding of their worth.   
+
+    - Draft 5-10 Research questions that focus on the problem statement.
+      1. For dealers does the acquisition type factor into the value of the car?
+      1. Is there a relationship when purchasing from an auction between the average auction price and the average retail price?
+      1. When dealers buy from auctions, does the location of the auction affect the price?
+      1. Is there a relationship between the age of a car and odometer reading?
+      1. How much does the brand factor into the price?
+      1. Do suggested prices from 3rd party websites accurately define a price?
+
+  - Provide a concise explanation of how you plan to address this problem statement.
+    - I plan on finding a data set that will have information on dealer prices, auctions as well as prices under websites that consumers can sell on like craigslist or other related sites. With this data, I will look to identify relationships within the data to try and identify correlations with vehicle information and price. I will attempt to model the data sets to potentially predict “lemons”. 
+
+  - Discuss how your proposed approach will address (fully or partially) this problem.
+    - This will partially identify relationships on vehicle information. It will allow consumers/dealers to look at data and identify relationships among cars to make better business decisions about buying cars. 
+
+    
+  - Do some digging on a dataset that you can use to address the issue.
+    - Carvana. (2012, January 5). Don't Get Kicked! Retrieved November 3, 2019, from https://www.kaggle.com/c/DontGetKicked/overview.
+      - The original purpose of this competition was to identify high-risk vehicles in auctions. Car dealers go to auctions to fill their inventory and run the risk of cars being tampered with or need a lot of fixes. They were looking for a model to be able to identify cars that were at risk of costing them more money than they were worth. There is a dictionary for the columns identifying what they are. There are 34 variables in the data set. The data looks cleaned up, values that are not populated are marked as NULL for most columns, but some are just not populated. Looks like wheel type has a description as well as id, leading me to believe that wheel type could factor into how risky the car is. Looks like nationality on the cars are defined as American, Top Line Asian, Other Asian, other and Null. Looks like Asian cars might play a roll in modeling.  There are 72,983 rows in the training data set and 48,707 in the test data set.
+    - CooperUnion. (2016, December 21). Car Features and MSRP. Retrieved November 3, 2019, from https://www.kaggle.com/CooperUnion/cardataset.
+      - Data was scraped from Edmunds and Twitter to predict the price. Included in the data are basic data such as make, model, year, engine information, etc. this information is then used to back into the MSRP to predict the price. Looks like there are a few values that are not populated in the data, but all in all, it looks pretty clean. The missing values are just not populated. Things that are missing values are electric motors like Tesla and such. Fuel type has some oddities, premium fuel has whether it’s required or recommended, looks like there are flex-fuel and some natural gas.  There are 11,914 rows in the data set and 16 variables. 
+    - Reese, A. (2019, October 13). Used Cars Dataset. Retrieved November 3, 2019, from https://www.kaggle.com/austinreese/craigslist-carstrucks-data#craigslistVehicles.csv.
+      - The data is web scrape from craigslist auto. It has pulled all current listings as of October for the used cars. Since it is craigslist the data isn’t quite so clean. There are misspelled words in the columns and other columns used not as they were intended. Some of the price columns have special characters that would need to be identified and cleaned/removed. Missing values are just missing nothing to technically identify them. The data has the link to get to the web page as well as the image link for the vehicle. The image link could be useful to help identify the things that factor into the price defined by the user. 22 columns are giving descriptive information about the car. There are 550,313 rows in the data set. 
+  - Identify the Packages that are needed for your project.
+    - library(QuantPsyc)
+    - library(dplyr)
+    - library(car)
+    - library(ggplot2)
+    - library(foreign)
+    - library(broom)
+    - library(class)
+    - library(useful)
+  - What types of plots and tables will help you to illustrate the ﬁndings to your research questions?
+    - scatterplots, histograms, regression lines, correlation matrix, and summary tables.
+  - What do you not know how to do right now that you need to learn to answer your research questions?
+    - At this point, I will go back through the text and identify how to clean the data. I get the idea that we need to consider outliers and look for odd behaviors, but sometimes it just doesn’t seem so straight forward. 
+
+##### **Section 2 – Cleaning Your Data and Exploratory Data Analysis**
+
+```{r libraries, message=FALSE, warning=FALSE, include=FALSE}
+library(QuantPsyc)
+library(ggplot2)
+library(foreign)
+library(broom)
+library(magrittr)
+library(class)
+library(useful)
+library(base)
+library(readr)
+library(psych)
+library(Hmisc)
+library(GGally)
+library(car)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+training <- read_csv("training.csv")
+test <- read_csv("test.csv")
+```
+<ul>
+  <li>Data importing and cleaning steps are explained in the text and the DataCamp exercises. (Tell me why you are doing the data cleaning activities that you perform). Follow a logical process.</li>
+    <ul>
+      <li>I am looking over the structure of the data, column names, general information about the data as well as column and row counts. </li>
+```{r structure, echo=FALSE, message=FALSE, warning=FALSE}
+glimpse(training)
+``` 
+      <li>We need to drop refId and Purchdate (we have age of car). Change IsBadBuy and IsOnlineSale to a factor.Look for "NULL" in the following columns look for ways to update in way that is congruent with the data. (Auction, Make, Model,Trim, SubModel, Color, Transmission, WheelTypeID, WheelType, Nationality, Size, PRIMEUNIT, BYRNO, and VNST) All variables with MMR...Price need to be converted into a numeric value. I am going to shorten the names of the some of the columns in order to make them more readable on graphs, just the mmr...Price ones.</li>
+```{r update variables, include=FALSE}
+colnames(training) <- gsub("Acquisition", "Acq", colnames(training))
+colnames(training) <- gsub("Acquisiton", "Acq", colnames(training))
+colnames(training) <- gsub("Current", "Cur", colnames(training))
+colnames(training) <- gsub("Auction", "Auct", colnames(training))
+colnames(training) <- gsub("Retail", "Ret", colnames(training))
+colnames(training) <- gsub("Average", "Avg", colnames(training))
+colnames(training) <- gsub("Clean", "Cln", colnames(training))
+colnames(training) <- gsub("Price", "Pr", colnames(training))
+
+trn <- training[,!(colnames(training) %in% c("RefId", "PurchDate"))]
+trn$IsBadBuy <- factor(trn$IsBadBuy,levels = c(0,1))
+trn$IsOnlineSale <- factor(trn$IsOnlineSale,levels = c(0,1))
+
+suppressWarnings(trn[,grepl("MMR", names(trn))][sapply(trn[,grepl("MMR", names(trn))], is.character)] <- lapply(trn[,grepl("MMR", names(trn))][sapply(trn[,grepl("MMR", names(trn))], is.character)], as.numeric))
+```
+      <li>Now I look through and do a count on the variables to look for odd behaviors like bad column names and such. Only included top ten, to not overload the file print out.</li>
+```{r variable check, echo=FALSE, message=FALSE, warning=FALSE}
+kable(trn %>%
+  top_n(10) %>%
+  count(SubModel), caption = "SubModel") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+  
+kable(trn %>%
+  top_n(10) %>%
+  count(Color), caption = "Color")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+kable(trn %>%
+  count(Transmission), caption = "Transmission")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+kable(trn %>%
+  count(WheelTypeID), caption = "WheelTypeID")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+kable(trn %>%
+  count(WheelType), caption = "WheelType")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+kable(trn %>%
+  count(Nationality), caption = "Nationality")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+kable(trn %>%
+  count(Size), caption = "Size")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+kable(trn %>%
+  count(TopThreeAmericanName), caption = "TopThreeAmericanName")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+kable(trn %>%
+  count(PRIMEUNIT), caption = "PRIMEUNIT")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+kable(trn %>%
+  count(AUCGUART), caption = "AUCGUART")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+kable(trn %>%
+  top_n(10) %>%
+  count(BYRNO), caption = "BYRNO")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+kable(trn %>%
+  top_n(10) %>%
+  count(VNST), caption = "VNST")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+      <li>Anything that was set to NULL I set it to NA so that R would recognize it as missing data. Transmission, had two manual variables, one with a combination of upper and lower case letters and the other with all uppercase. I made them all the same.</li> 
+```{r updates, echo=FALSE, message=FALSE, warning=FALSE}
+
+trn$SubModel[grep("NULL",trn$SubModel, ignore.case = T, fixed = F)] <- NA
+trn$Color[grep("NULL",trn$Color, ignore.case = T, fixed = F)] <- NA
+trn$Color[grep("NOT AVAIL",trn$Color, ignore.case = T, fixed = F)] <- NA
+
+trn$Transmission[grep("NULL",trn$Transmission, ignore.case = T, fixed = F)] <- NA
+trn$Transmission[grep("MANUAL",trn$Transmission, ignore.case = T, fixed = F)] <- "MANUAL"
+trn$WheelTypeID[grep("NULL",trn$WheelTypeID, ignore.case = T, fixed = F)] <- NA
+trn$WheelType[grep("NULL",trn$WheelType, ignore.case = T, fixed = F)] <- NA
+trn$Nationality[grep("NULL",trn$Nationality, ignore.case = T, fixed = F)] <- NA
+trn$Size[grep("NULL",trn$Size, ignore.case = T, fixed = F)] <- NA
+trn$TopThreeAmericanName[grep("NULL",trn$TopThreeAmericanName, ignore.case = T, fixed = F)] <- NA
+trn$PRIMEUNIT[grep("NULL",trn$PRIMEUNIT, ignore.case = T, fixed = F)] <- NA
+trn$AUCGUART[grep("NULL",trn$AUCGUART, ignore.case = T, fixed = F)] <- NA
+
+trn[sapply(trn, is.character)] <- lapply(trn[sapply(trn,is.character)], as.factor)
+
+glimpse(trn)
+
+```
+      <li>I will now set these values to a numeric for calculating correlation. I am getting rid of the columns PRIMEUNIT and AUCGUART. Both PRIMEUNIT and AUCGUART have 69,564 of the 72,983 set as null, so no reason to keep them. Then I will Calculate the correlation and p values and then sort on the the correlation. I will do this by the absolute values, largest at the top.</li>
+```{r correlation, echo=FALSE, message=FALSE, warning=FALSE}
+train <- trn[,!(colnames(trn) %in% c("PRIMEUNIT", "AUCGUART"))]
+train[sapply(train, is.factor)] <- lapply(train[sapply(train,is.factor)], as.numeric)
+train.rc <- rcorr(as.matrix(train))
+cor.train1 <- data.frame(matrix(NA, nrow = 29, ncol = 1))
+cor.train1$name <- attributes(train.rc$r[-1,0])$dimnames[[1]]
+cor.train <- subset(cor.train1, select = c("name"))
+cor.train$r <- train.rc$r[2:30,1]
+cor.train$r2 <- train.rc$r[2:30,1]^2
+cor.train$P <- train.rc$P[2:30,1]
+kable(arrange(cor.train, desc(abs(r))), caption = "Correlation Between IsBadBuy and Variables") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+      <li>For variables with ID's or binary, I substract 1 to line them up with their original values and then we will start to try and fit the model along with finding multicollinearity.</li>
+```{r glm, echo=FALSE, message=FALSE, warning=FALSE}
+train$IsBadBuy <- train$IsBadBuy -1
+train$IsOnlineSale <- train$IsOnlineSale -1
+train$WheelTypeID <- train$WheelTypeID - 1
+train$IsBadBuy <- factor(train$IsBadBuy,levels = c(0,1))
+train.glm <- glm(IsBadBuy ~ . , data = train , family = binomial())
+summary(train.glm)
+```
+      <li>Looks like wheel type is causing some issues, it has singularity, so I will drop that variable.</li>
+```{r glm2, echo=FALSE, message=FALSE, warning=FALSE}
+train.glm2 <- glm(IsBadBuy ~ .-WheelType, data = train , family = binomial())
+summary(train.glm2)
+```
+      <li>Now there are several variables that have a high p value, but before we remove anything else I want to check for multicollinearity among the data points. I am assumming that mmr...prices are similar.I also think that VehYear and VehicleAge are similar. First I will plot these out with ggpairs, then check using the vif function as well as its reciprocal to validate mulitcollinearity.</li>
+```{r ggpairs, echo=FALSE, message=FALSE, warning=FALSE}
+pairs(~MMRAcqAuctAvgPr+MMRAcqAuctClnPr+MMRAcqRetAvgPr +MMRAcqRetClnPr +MMRCurAuctAvgPr+MMRCurAuctClnPr+MMRCurRetAvgPr +MMRCurRetClnPr, train, 
+      lower.panel = panel.smooth, main = "MMR Prices")
+pairs(~VehYear+VehicleAge, train, 
+      panel = panel.smooth, main = "Vehicle Age/Year")
+
+```
+```{r vif, echo=FALSE, message=FALSE, warning=FALSE}
+kable(vif(train.glm2), caption = "VIF")  %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+kable(1/vif(train.glm2), caption = "1/VIF")  %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+      <li>After using the vif and pairs functions, my assumptions are correct about MMR...Price variables and vehicleAge and vehYear. Since the variables indicate by their name they are similar I don't think that it will hurt to drop some of them. I will keep MMRAcqRetAvgPr and VehAge, since the p value is most significant in the the model summary print out from above.</li>
+```{r logit2, echo=FALSE, message=FALSE, warning=FALSE}
+train.2 <- train[,!(colnames(train) %in% c("VehYear", "MMRAcqAuctAvgPr", "MMRAcqAuctClnPr","MMRAcqRetClnPr", "MMRCurAuctAvgPr", "MMRCurAuctClnPr", "MMRCurRetAvgPr", "MMRCurRetClnPr","MMRCurAuctClnPr", "WheelType"))]
+train.glm2 <- glm(IsBadBuy ~ ., data = train.2 , family = binomial())
+summary(train.glm2)
+```
+```{r mulitcollinearity3, echo=FALSE, message=FALSE, warning=FALSE}
+kable(vif(train.glm2), caption = "VIF")  %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+kable(1/vif(train.glm2), caption = "1/VIF")  %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+      <li>There we have fixed the multicollinearity issue and the variables seems to be better now. The AIC seemed to go up so I am going to drop some of the variables to see if we can lower it. I will start by dropping all non significant variables.</li>
+```{r drp1, echo=FALSE, message=FALSE, warning=FALSE}
+train.3 <- train.2[,!(colnames(train.2) %in% c(  "Nationality"))]
+train.glm3 <- glm(IsBadBuy ~ ., data = train.3 , family = binomial())
+summary(train.glm3)
+```
+      <li>Looks like the AIC didn't lower a much so I will just use the previous one, with all without dropping anymore variables. I tried adding them in individually one at a time and the results for the AIC were greater.Left code below.</li>
+```{r going through each variable, echo=FALSE, message=FALSE, warning=FALSE}
+aic <- list()
+train.glm.test1 <- glm(IsBadBuy ~ VehicleAge , data = train , family = binomial())
+aic[1] <- train.glm.test1$aic
+train.glm.test2  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr , data = train , family = binomial())
+aic[2]<- train.glm.test2$aic
+train.glm.test3  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost , data = train , family = binomial())
+aic[3]<- train.glm.test3$aic
+train.glm.test4  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO , data = train , family = binomial())
+aic[4]<-train.glm.test4$aic
+#Warranty increases AIC, dropping
+train.glm.test5  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WarrantyCost , data = train , family = binomial())
+aic[5]<-train.glm.test5$aic
+train.glm.test6  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID , data = train , family = binomial())
+aic[6]<-train.glm.test6$aic
+#Auct increases AIC, dropping
+train.glm.test7  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + Auct, data = train , family = binomial())
+aic[7]<-train.glm.test7$aic
+#Make increases AIC, dropping
+train.glm.test8  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + Make, data = train , family = binomial())
+aic[8]<-train.glm.test8$aic
+#Model increases AIC, dropping
+train.glm.test9  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + Model, data = train , family = binomial())
+aic[9]<-train.glm.test9$aic
+train.glm.test10  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + VNST, data = train , family = binomial())
+aic[10]<-train.glm.test10$aic
+train.glm.test11  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + VNST + Nationality, data = train , family = binomial())
+aic[11]<-train.glm.test11$aic
+train.glm.test12  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + VNST + Nationality + Trim, data = train , family = binomial())
+aic[12]<-train.glm.test12$aic
+#SubModel increases AIC, dropping
+train.glm.test13  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + VNST + Nationality + Trim +SubModel, data = train , family = binomial())
+aic[13]<-train.glm.test13$aic
+train.glm.test14  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + VNST + Nationality + Trim +Color, data = train , family = binomial())
+aic[14]<-train.glm.test14$aic
+train.glm.test15  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + VNST + Nationality + Trim + Color + VNZIP1, data = train , family = binomial())
+aic[15]<-train.glm.test15$aic
+train.glm.test16  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + VNST + Nationality + Trim + Color + VNZIP1 +Transmission, data = train , family = binomial())
+aic[16]<-train.glm.test16$aic
+train.glm.test17  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + VNST + Nationality + Trim + Color + VNZIP1 +Transmission +IsOnlineSale, data = train , family = binomial())
+aic[17]<-train.glm.test17$aic
+#Size increases AIC, dropping
+train.glm.test18  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + VNST + Nationality + Trim + Color + VNZIP1 +Transmission +IsOnlineSale +Size, data = train , family = binomial())
+aic[18]<-train.glm.test18$aic
+train.glm.test19  <-glm(IsBadBuy ~ VehicleAge + MMRAcqAuctAvgPr +VehBCost + BYRNO + WheelTypeID + VNST + Nationality + Trim + Color + VNZIP1 +Transmission +IsOnlineSale +TopThreeAmericanName, data = train , family = binomial())
+aic[19]<-train.glm.test19$aic
+kable(aic, caption = "AIC")  %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+    </ul>
+  <li>With a clean dataset, show what the final data set looks like. However, do not print off a data frame with 200+ rows; show me the data in the most condensed form possible.</li>
+</ul>
+```{r summary, echo=FALSE, message=FALSE, warning=FALSE}
+head(train.2)
+```
+    - What do you not know how to do right now that you need to learn to import and clean up your dataset?
+      - I think I have pretty well cleaned up the data, I guess I am not sure when to manipulate the data. I feel like wheeltype I could change it to match wheeltypeid. The numbers match and the id matches. After setting up the model it seems to have corrected itself, we need to get rid of wheeltype due to singularity in the model.
+  - Discuss how you plan to uncover new information in the data that is not self-evident.
+    - I plan on running some more correlation test, checking graphs, calculating the p test to check the variables.
+
+  - What are the different ways you could look at this data to answer the questions you want to answer?
+I plan on doing logistic regression, but I could also look at using the nearest neighbors to try and predict the data as well. 
+
+  - Do you plan to slice and dice the data in different ways, create new variables, or join separate data frames to create new summary information? Explain.
+    - I may consider looking to create new variables to help in the analysis. 
+
+  - How could you summarize your data to answer key questions?
+    - VehicleAge, VehOdo, MMRAcquisitionRetailAveragePrice, BYRNO, VNST and VehBCost all had significantly low p-values, less than .001 which weighed heavily on the outcome of the model. WheelTypeID was less than .05. 
+
+  - What types of plots and tables will help you to illustrate the findings to your questions? Ensure that all graph plots have axis titles, legend if necessary, scales are appropriate, appropriate geoms used, etc.).
+    - For the plots, I may do some probability plots and some scatterplots.
+
+  - What do you not know how to do right now that you need to learn to answer your questions?
+    - I think I am okay, I was a little uncomfortable about the logistic regression model, just making sure that I meet the assumptions. Once I checked for multicollinearity, I think I am okay. 
+
+  - Do you plan on incorporating any machine learning techniques to answer your research questions? Explain.
+    - If I have time I might try and do something with the nearest neighbors. We will see though.
+
+##### **Section 3 – Starting Your Writeups**
+
+<ul>
+  <li>Discuss how you plan to uncover new information in the data that is not self-evident.</li>
+    <ul>
+      <li>First I am going to see how accurate my model is, and then I will look to see if I need to update anything.</li>
+```{r libraries section 3, echo=FALSE, message=FALSE, warning=FALSE}
+
+train <- train.2[complete.cases(train.2),!(colnames(train.2) %in% c("X1"))]
+train$IsBadBuy <- factor(train$IsBadBuy,levels = c(0,1))
+
+train.glm <- glm(IsBadBuy ~ ., data = train , family = binomial())
+summary(train.glm)
+```
+      <li>Looking at where I left off before I was able to get my AIC down fairly low compared to where I was at before. Let us see how accurate I ended up with my modeling.</li>
+```{r _accuracy, echo=FALSE, message=FALSE, warning=FALSE}
+
+tidy_mod <- train.glm  %>%
+    augment(type.predict = "response") %>%
+    mutate(kicked_hat = round(.fitted))
+kable(tidy_mod %>%
+  select(IsBadBuy, kicked_hat) %>%
+  table()) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  add_header_above(c("IsBadBuy" = 1 , "kicked_hat" = 1))
+100 * sum(tidy_mod$IsBadBuy == tidy_mod$kicked_hat)/NROW(tidy_mod$IsBadBuy)
+```
+      <li>Looks like the model is about 90% accurate at picking up kicked cars, my biggest concern with accuracy is that it doesn't pick up kicked cars. I am going to reevaluate and look at keeping the NA values and assigning them a value. For continuous variables, I will assign them the avg and discrete I will give them their assignment.   
+Below, I will bring in all the columns again and update all missing values.</li>
+```{r attempt3, echo=FALSE, message=FALSE, warning=FALSE}
+trn <- read_csv("training.csv")
+#condense variable names down so they are easier to read
+colnames(trn) <- gsub("Acquisition", "Acq", colnames(trn))
+colnames(trn) <- gsub("Acquisiton", "Acq", colnames(trn))
+colnames(trn) <- gsub("Current", "Cur", colnames(trn))
+colnames(trn) <- gsub("Auction", "Auct", colnames(trn))
+colnames(trn) <- gsub("Retail", "Ret", colnames(trn))
+colnames(trn) <- gsub("Average", "Avg", colnames(trn))
+colnames(trn) <- gsub("Clean", "Cln", colnames(trn))
+colnames(trn) <- gsub("Price", "Pr", colnames(trn))
+
+#drop already variables that showed multicollinearity
+trn2 <- trn[,!(colnames(trn) %in% c("RefId",  "X1", "VehYear", "MMRAcqAuctAvgPr", "MMRAcqAuctClnPr","MMRAcqRetClnPr", "MMRCurAuctAvgPr", "MMRCurAuctClnPr", "MMRCurRetAvgPr", "MMRCurRetClnPr","MMRCurAuctClnPr", "WheelType"))]
+
+#update factor variables
+trn2$IsBadBuy <- factor(trn2$IsBadBuy,levels = c(0,1))
+trn2$IsOnlineSale <- factor(trn2$IsOnlineSale,levels = c(0,1))
+
+
+#convert MMR prices to a numeric values
+suppressWarnings(trn2[,grepl("MMR", names(trn2))][sapply(trn2[,grepl("MMR", names(trn2))], is.character)] <- lapply(trn2[,grepl("MMR", names(trn2))][sapply(trn2[,grepl("MMR", names(trn2))], is.character)], as.numeric))
+
+#udpate null values to their own categories
+trn2$Transmission[grep(NA,trn2$Transmission, ignore.case = T, fixed = F)] <- "NULL"
+
+#fix Manual to all be caps 
+trn2$Transmission[grep("MANUAL",trn2$Transmission, ignore.case = T, fixed = F)] <- "MANUAL"
+trn2$WheelTypeID[grep("NULL",trn2$WheelTypeID, ignore.case = T, fixed = F)] <- "0"
+
+#check for missing values
+#sapply(trn2, function(x) sum(is.na(x)))
+#update missing values
+trn2 <- trn2 %>% 
+                mutate( Trim = (replace(Trim, 
+                                        is.na(Trim),
+                                        "NULL")),
+                        Transmission = (replace(Transmission, 
+                                        is.na(Transmission),
+                                        "NULL")),
+                        MMRAcqRetAvgPr = replace(MMRAcqRetAvgPr, 
+                                  is.na(MMRAcqRetAvgPr)  , 
+                                  median(MMRAcqRetAvgPr, na.rm = T)))
+#check missing values again
+#sapply(trn2, function(x) sum(is.na(x)))
+#do a unique value check
+#sapply(trn2, function(x) length(unique(x)))
+#convert characters to numerics
+trn2[sapply(trn2, is.character)] <- lapply(trn2[sapply(trn2,is.character)], as.factor)
+#We don't want to change isbadbuy and onlinesale
+trn2[,!(colnames(trn2) %in% c("IsOnlineSale", "IsBadBuy"))][sapply(trn2[,!(colnames(trn2) %in% c("IsOnlineSale", "IsBadBuy"))], is.factor)] <- lapply(trn2[,!(colnames(trn2) %in% c("IsOnlineSale", "IsBadBuy"))][sapply(trn2[,!(colnames(trn2) %in% c("IsOnlineSale", "IsBadBuy"))],is.factor)], as.numeric)
+
+str(trn2)
+#run model
+trn2.glm <- glm(IsBadBuy ~ ., data = trn2 , family = binomial(link = 'logit'))
+#check the summary
+summary(trn2.glm)
+#get predictions
+tidy_mod <- trn2.glm  %>%
+    augment(type.predict = "response") %>%
+    mutate(kicked_hat = round(.fitted))
+#Confusion Matrix
+kable(tidy_mod %>%
+  select(IsBadBuy, kicked_hat) %>%
+  table()) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  add_header_above(c("IsBadBuy" = 1 , "kicked_hat" = 2))
+#Accuracy ck
+100 * sum(tidy_mod$IsBadBuy == tidy_mod$kicked_hat)/NROW(tidy_mod$IsBadBuy)
+```
+      <li>Looks like including all the missing data is less accurate, but I am more comfortable with this output because the model is predicting kicked cars. I'd like to also check for duplicate rows in my data to see if it is affecting the numbers at all.</li>
+```{r duplicate check, echo=FALSE, message=FALSE, warning=FALSE}
+kable(trn2[duplicated(trn2),]) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+      <li>Looks like there are no rows that are duplicated within the data frame.</li>
+    </ul>
+  <li>What are different ways you could look at this data to answer the questions you want to answer?</li>
+    <ul>
+      <li>I could potentially look at using the nearest neighbors, but due to time constraints I am going got hold off on that. </li>
+    </ul>
+
+  <li>Do you plan to slice and dice the data in different ways, create new variables, or join separate data frames to create new summary information? Explain.</li>
+    <ul>
+      <li>I don't plan to slice and dice any more than what I already have.</li>
+      <li>I am wondering if I should be looking at adding some interaction variables. For instance, when buying cars one may consider the average miles the car has had over the years.</li>
+```{r interaction avgmiles, echo=FALSE, message=FALSE, warning=FALSE, message=FALSE}
+#calculate avg miles odometer/age
+trn2 <- trn2 %>% 
+                mutate( avgMiles = ifelse(VehicleAge == 0,0,VehOdo/VehicleAge))
+
+trn2.glm2 <- glm(IsBadBuy ~ .  , data = trn2 , family = binomial(link = 'logit'))
+#check the summary
+summary(trn2.glm2)
+#get predictions
+tidy_mod <- trn2.glm2  %>%
+    augment(type.predict = "response") %>%
+    mutate(kicked_hat = round(.fitted))
+#Confusion Matrix
+kable(tidy_mod %>%
+  select(IsBadBuy, kicked_hat) %>%
+  table()) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  add_header_above(c("IsBadBuy" = 1 , "kicked_hat" = 2))
+#Accuracy ck
+100 * sum(tidy_mod$IsBadBuy == tidy_mod$kicked_hat)/NROW(tidy_mod$IsBadBuy)
+```
+      <li>That improved our accuracy, only a margin, but we'll take it. I tried adding other variables and removing them but it didn't seem to the overall picture. I added onlinesales * vehBCost(see below), adding month of the year (see below), onlineSales * vehOdo, I dropped  Primeunit and AUCGUART, but to no avail, each time it just dropped minimally.</li> 
+```{r interaction onlineOdo, echo=FALSE, message=FALSE, warning=FALSE}
+trn2 <- trn2 %>% 
+                mutate( onlineMiles = as.numeric(IsOnlineSale) * VehOdo)
+trn2.glm3 <- glm(IsBadBuy ~ . - onlineMiles, data = trn2 , family = binomial(link = 'logit'))
+#check the summary
+summary(trn2.glm3)
+#get predictions
+tidy_mod <- trn2.glm3  %>%
+    augment(type.predict = "response") %>%
+    mutate(kicked_hat = round(.fitted))
+#Confusion Matrix
+kable(tidy_mod %>%
+  select(IsBadBuy, kicked_hat) %>%
+  table()) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  add_header_above(c("IsBadBuy" = 1 , "kicked_hat" = 2))
+#Accuracy ck
+100 * sum(tidy_mod$IsBadBuy == tidy_mod$kicked_hat)/NROW(tidy_mod$IsBadBuy)
+```
+      <li>interaction month of the year</li>
+```{r interaction months, echo=FALSE, message=FALSE, warning=FALSE}
+trn2$purchMonth <-  format(as.Date(trn$PurchDate, "%m/%d/%Y"), "%m")
+
+trn2.glm4 <- glm(IsBadBuy ~ . - onlineMiles , data = trn2 , family = binomial(link = 'logit'))
+#check the summary
+summary(trn2.glm4)
+#get predictions
+tidy_mod <- trn2.glm4  %>%
+    augment(type.predict = "response") %>%
+    mutate(kicked_hat = round(.fitted))
+#Confusion Matrix
+kable(tidy_mod %>%
+  select(IsBadBuy, kicked_hat) %>%
+  table()) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  add_header_above(c("IsBadBuy" = 1 , "kicked_hat" = 2))
+#Accuracy ck
+100 * sum(tidy_mod$IsBadBuy == tidy_mod$kicked_hat)/NROW(tidy_mod$IsBadBuy)
+```
+      <li>All the variables I have added just move things around so the number might go up in one bucket but they go down in another. 
+      <li>I'm wondering what happens if I don't drop anything at all, keep all the variables.</li>
+```{r attempt2, echo=FALSE, message=FALSE, warning=FALSE}
+trn3 <- trn[,!(colnames(trn) %in% c("RefId",  "X1"))]
+
+#update factor variables
+trn3$IsBadBuy <- factor(trn3$IsBadBuy,levels = c(0,1))
+trn3$IsOnlineSale <- factor(trn3$IsOnlineSale,levels = c(0,1))
+
+
+#convert MMR prices to a numeric values
+suppressWarnings(trn3[,grepl("MMR", names(trn3))][sapply(trn3[,grepl("MMR", names(trn3))], is.character)] <- lapply(trn3[,grepl("MMR", names(trn3))][sapply(trn3[,grepl("MMR", names(trn3))], is.character)], as.numeric))
+
+#udpate null values to their own categories
+trn3$Transmission[grep(NA,trn3$Transmission, ignore.case = T, fixed = F)] <- "NULL"
+
+#fix Manual to all be caps 
+trn3$Transmission[grep("MANUAL",trn3$Transmission, ignore.case = T, fixed = F)] <- "MANUAL"
+trn3$WheelTypeID[grep("NULL",trn3$WheelTypeID, ignore.case = T, fixed = F)] <- "0"
+
+#check for missing values
+#sapply(trn3, function(x) sum(is.na(x)))
+#update missing values
+trn3 <- trn3 %>% 
+                mutate( Trim = (replace(Trim, 
+                                        is.na(Trim),
+                                        "NULL")),
+                        Transmission = (replace(Transmission, 
+                                        is.na(Transmission),
+                                        "NULL")),
+                        MMRAcqAuctAvgPr  = replace(MMRAcqAuctAvgPr , 
+                                  is.na(MMRAcqAuctAvgPr ), 
+                                  median(MMRAcqAuctAvgPr , na.rm = T)),
+                        MMRAcqAuctClnPr = replace(MMRAcqAuctClnPr, 
+                                  is.na(MMRAcqAuctClnPr), 
+                                  median(MMRAcqAuctClnPr, na.rm = T)),
+                        MMRAcqRetAvgPr = replace(MMRAcqRetAvgPr, 
+                                  is.na(MMRAcqRetAvgPr), 
+                                  median(MMRAcqRetAvgPr, na.rm = T)),
+                        MMRAcqRetClnPr = replace(MMRAcqRetClnPr, 
+                                  is.na(MMRAcqRetClnPr), 
+                                  median(MMRAcqRetClnPr, na.rm = T)),
+                        MMRCurAuctAvgPr = replace(MMRCurAuctAvgPr, 
+                                  is.na(MMRCurAuctAvgPr), 
+                                  median(MMRCurAuctAvgPr, na.rm = T)),
+                         MMRCurAuctClnPr  = replace( MMRCurAuctClnPr , 
+                                  is.na( MMRCurAuctClnPr ), 
+                                  median( MMRCurAuctClnPr , na.rm = T)),
+                         MMRCurRetAvgPr  = replace( MMRCurRetAvgPr , 
+                                  is.na( MMRCurRetAvgPr ), 
+                                  median( MMRCurRetClnPr , na.rm = T)),
+                         MMRCurRetClnPr  = replace( MMRCurRetAvgPr , 
+                                  is.na( MMRCurRetClnPr ), 
+                                  median( MMRCurRetClnPr , na.rm = T)))
+#check missing values again
+#sapply(trn3, function(x) sum(is.na(x)))
+#do a unique value check
+#sapply(trn3, function(x) length(unique(x)))
+#convert characters to numerics
+trn3[sapply(trn3, is.character)] <- lapply(trn3[sapply(trn3,is.character)], as.factor)
+#We don't want to change isbadbuy and onlinesale
+trn3[,!(colnames(trn3) %in% c("IsOnlineSale", "IsBadBuy"))][sapply(trn3[,!(colnames(trn3) %in% c("IsOnlineSale", "IsBadBuy"))], is.factor)] <- lapply(trn3[,!(colnames(trn3) %in% c("IsOnlineSale", "IsBadBuy"))][sapply(trn3[,!(colnames(trn3) %in% c("IsOnlineSale", "IsBadBuy"))],is.factor)], as.numeric)
+
+kable(str(trn3))
+#run model
+trn3.glm <- glm(IsBadBuy ~ ., data = trn3 , family = binomial(link = 'logit'))
+#check the summary
+summary(trn3.glm)
+#get predictions
+tidy_mod <- trn3.glm  %>%
+    augment(type.predict = "response") %>%
+    mutate(kicked_hat = round(.fitted))
+#Confusion Matrix
+kable(tidy_mod %>%
+  select(IsBadBuy, kicked_hat) %>%
+  table()) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  add_header_above(c("IsBadBuy" = 1 , "kicked_hat" = 2))
+
+#Accuracy ck
+100 * sum(tidy_mod$IsBadBuy == tidy_mod$kicked_hat)/NROW(tidy_mod$IsBadBuy)
+```
+      <li>We should drop the NA since we already know there is some multicolinearity. I will add log values to see how well the model fits, but I don't know how much it is worth seeing that we only increased up to 89% accurate.</li> 
+```{r accuracy, echo=FALSE, message=FALSE, warning=FALSE}
+trn3$logMMRAcqAuctAvgPr <- log(trn3$MMRAcqAuctAvgPr +1) * trn3$MMRAcqAuctAvgPr
+trn3$logMMRAcqAuctClnPr <- log(trn3$MMRAcqAuctClnPr +1) * trn3$MMRAcqAuctClnPr
+trn3$logMMRAcqRetAvgPr  <- log(trn3$MMRAcqRetAvgPr  +1) * trn3$MMRAcqRetAvgPr 
+trn3$logMMRAcqRetClnPr <- log(trn3$MMRAcqRetClnPr +1) * trn3$MMRAcqRetClnPr
+trn3$logMMRCurAuctAvgPr <- log(trn3$MMRCurAuctAvgPr +1) * trn3$MMRCurAuctAvgPr
+trn3$logMMRCurAuctClnPr <- log(trn3$MMRCurAuctClnPr +1) * trn3$MMRCurAuctClnPr
+trn3$logMMRCurRetAvgPr <- log(trn3$MMRCurRetAvgPr +1) * trn3$MMRCurRetAvgPr
+trn3$logMMRCurRetClnPr <- log(trn3$MMRCurRetClnPr +1) * trn3$MMRCurRetClnPr
+trn3$logVehYear <- log(trn3$VehYear +1) * trn3$VehYear         
+trn3$logVehicleAge <- log(trn3$VehicleAge +1) * trn3$VehicleAge
+trn3$logWheelTypeID  <- log(trn3$WheelTypeID  +1) * trn3$WheelTypeID 
+trn3$logWheelType <- log(trn3$WheelType +1) * trn3$WheelType
+trn3.glm2 <- glm(IsBadBuy ~ ., data = trn3 , family = binomial())
+summary(trn3.glm2)
+tidy_mod <- trn3.glm2  %>%
+    augment(type.predict = "response") %>%
+    mutate(kicked_hat = round(.fitted))
+kable(tidy_mod %>%
+  select(IsBadBuy, kicked_hat) %>%
+  table()) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  add_header_above(c("IsBadBuy" = 1 , "kicked_hat" = 2))
+100 * sum(tidy_mod$IsBadBuy == tidy_mod$kicked_hat)/NROW(tidy_mod$IsBadBuy)
+```
+      <li>Looks like we can drop MMRCurRetClnPr, MMRCurRetAvgPr, VehYear, WheelType, logVehYear, logWheelType , logMMRCurRetAvgPr and logMMRCurRetClnPr, since they do show normality or p < .05. This just means that we are seeing mulitcollinearity.</li> 
+```{r drop variables, echo=FALSE, message=FALSE, warning=FALSE}
+trn4 <- trn3[,!(colnames(trn3) %in% c("MMRCurRetClnPr","WheelType", "logMMRCurRetClnPr", "logWheelType", "logVehicleAge", "logMMRAcqRetAvgPr", "PurchDate", "MMRCurAuctClnPr", "logMMRAcqRetAvgPr", "MMRAcqAuctClnPr", "Size"))]
+trn4.glm <- glm(IsBadBuy ~ ., data = trn4 , family = binomial())
+summary(trn4.glm)
+tidy_mod <- trn4.glm  %>%
+    augment(type.predict = "response") %>%
+    mutate(kicked_hat = round(.fitted))
+kable(tidy_mod %>%
+  select(IsBadBuy, kicked_hat) %>%
+  table()) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  add_header_above(c("IsBadBuy" = 1 , "kicked_hat" = 2))
+100 * sum(tidy_mod$IsBadBuy == tidy_mod$kicked_hat)/NROW(tidy_mod$IsBadBuy)
+```
+      <li>This is a bit better. I feel like there are thing that I am definitely missing something here, but we are getting a better match rate.</li>
+      <li>Lets look at an anova test between the two models.</li>
+```{r anova, echo=FALSE, message=FALSE, warning=FALSE}
+kable(anova(trn4.glm, trn2.glm4))  %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+      <li>Running all the variables through seems to be the better model for out data based on the ANOVA test.</li> 
+      <li>the chi-square test below, for the first number we do a chi-square on the null values, and then on the model and then do a comparison between them. Both NULL and the model show the are not normal since the p-value is 1, but the difference between the two indicate that they are also different.</li>
+```{r chisq ck, echo=FALSE, message=FALSE, warning=FALSE}
+1-pchisq(54421, 72982)
+1-pchisq(45182,72948)
+1- pchisq(54421 - 45182,72982- 72948)
+
+```
+  </ul>
+</ul>
+  - How could you summarize your data to answer key questions?
+    - Based on the chi-square both the null deviance and with constant and dependent variables are likely to come from a logistic regression model. Where the difference between the two is different this indicates that the deviants are different. The model currently has an 89% accuracy rate. While holding everything constant the newer the vehicle year the more likely the dealer is to not get a bad deal by a factor of 553. With the accuracy at about 89%, I would say our model is okay. It is still not predicting at great accuracy rate, I would like to see the model predict more of the ones that are lemons and it is missing those. 
+
+  - What types of plots and tables will help you to illustrate the findings to your questions? Ensure that all graph plots have axis titles, legend if necessary, scales are appropriate, appropriate geoms used, etc.).
+    - I will use ggplots to show some of the multicollinearity, and I will also show confusion matrix tables along with some tables that will show a glimpse into the data. 
+
+  - What do you not know how to do right now that you need to learn to answer your questions?
+    - I think I have done pretty well, but I would like to know how to fit the model better. I feel like there is just something that I am missing for my prep work. I believe, again, that the accuracy should improve. 
+
+  - Do you plan on incorporating any machine learning techniques to answer your research questions? Explain.
+    - I believe I already did, with the logistic regression model and providing the predictions. 
+ 
+##### **Section 4 – Report**
+
+### Introduction
+Car prices continue to go up, understanding the value of a car is important for dealers to consider while purchasing/trading a car.  Many consumers want the newest bells and whistles as well as the enhanced safety features for their families. Used cars can be tricky to purchase. Understanding a car's true value often comes after owning it for several weeks and its true colors start to shine...or fall off the car. Dealers face this issue as they purchase vehicles from auctions. Except they don't always get the luxury of a test drive, its an educated guess or some sort of modeling.  “Lemons”, or vehicles that are defective, affect car dealers' bottom line, and their ability to provide reliable products. Dealers will go to auctions to pick up cars to fill their lot for consumers. Understanding whether a car is a "lemon" is essential. If a dealer buys a car from an auction and it needs more repairs than its worth they may "kick" the car back to the auction. It may be more profitable to them to sale it back to the auction rather than list it on their lot. 
+
+### The problem statement you addressed.
+When dealers go to auctions, is there enough data available for dealers to determine a bad purchase like age, miles, the average price of the vehicle, or whether it was auctioned online. From kaggle.com, Carvana, set up a competition titled ["Don't Get Kicked!](https://www.kaggle.com/c/DontGetKicked) (Carvana, 2012), where they provided vehicle data from auctions and with it they also provided whether the purchase was bad. The purpose of this competition was to identify high-risk vehicles in auctions. 
+ 
+### How you addressed this problem statement 
+I have taken their training data set and created a logistic regression model to help identify cars that could potentially get "kicked" back. The reason why I choose a logistic model was due to the outcome being binomial whether the car is a bad buy. If the car was bad then the variable IsBadBuy was equal to 1 otherwise it would equal 0. 
+  1. I first cleaned the data by getting rid of missing values by row, to better model the data
+  1. Then I check the variables to find those that had a higher absolute value for correlation between the dependent and independent variables. 
+  1. Then I made sure there were no duplicates 
+  1. I looked for multicollinearity as well and dropped these variables that appeared to show collinearity
+  1. Then I modeled the data and tried to predict vehicles that would get "kicked"
+    - I added variables and dropped variables trying to determining the best fit
+
+### Analysis
+On the first attempt, the model was 90% accurate at predicting whether a car was a bad buy. I was able to get my AIC fairly low compared to what I started with, but the model was predicting that all cars were not a bad buy. So started from scratch again and this time I decided to include the missing values, the same columns as before. For discrete variables, I set them to an "other" or "NULL", for continuous variables I set them equal to the median of the variable, this way we would not be getting rid of rows, but we would have the entire set of data. On this attempt, the model was less accurate, but it was predicting bad purchases. The new model dropped down to 88%, but this looked more correct than before. I worked on increasing the accuracy by adding more variables like interaction variables, average miles per year, and looking at purchase date based on the month of the purchase. I also dropped some variables, but nothing I didn't change the accuracy much.
+I made a third model after this where I wouldn't drop any variables. I would keep them all. I did end up dropping some that showed with NA in the summary. The interesting thing about this model is that it predicted more bad purchases before, but the accuracy of a good buy dropped. The actual accuracy increased by up to 89%. I used the Anova test model 2 and 3, model 3 in the ANOVA test proved to be more useful. 
+
+
+### Implications
+Variables with the most influence on bad buys were vehicle age. Vehicle Age accounts for 2.7% of the variation on the car is a bad purchase. Vehicle Age has a 2.5% variation on the car is a bad purchase, but there is some multicollinearity going on. The MMRAcquistionAuctionAveragePrice has a 1.2% variation on the buy. A dealer should pay attention to these variables as they consider bidding on vehicles. With the logistic regression model, it was able to get about 90% accurate on predicting a car being a bad purchase. 
+
+### Limitations
+I still need to run the test data through the logistic regression model, to get a true sense of how accurate the data is. I believe more variables could provide a better variation on a bad purchase. Deciding on which variables to use, is still confusing to me. I tried several different variables, dropping and adding them and it didn't seem to help with the model being more accurate.  
+
+
+### Concluding Remarks
+In conclusion, the model still needs more work done to it. I believe that there is more within the logistic regression that could be done. There could be more variables to add or drop. With the model being 90% accurate, the model is on the way to being able to help identify cars at an auction that is not a good deal. We could look at doing KNN nearest neighbors, or there may be some other models that would work better for the data. 
+
+
+
+### Bibliography
+Carvana. (2012, January 5). Don't Get Kicked! Retrieved November 3, 2019, from https://www.kaggle.com/c/DontGetKicked/overview.
+
+CooperUnion. (2016, December 21). Car Features and MSRP. Retrieved November 3, 2019, from https://www.kaggle.com/CooperUnion/cardataset.
+
+Reese, A. (2019, October 13). Used Cars Dataset. Retrieved November 3, 2019, from https://www.kaggle.com/austinreese/craigslist-carstrucks-data#craigslistVehicles.csv.
